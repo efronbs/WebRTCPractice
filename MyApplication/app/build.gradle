@@ -15,6 +15,13 @@ android {
                 cppFlags "-frtti -fexceptions"
             }
         }
+
+
+        sourceSets.main {
+            jniLibs.srcDir 'libs'
+            jni.srcDirs = [] //disable automatic ndk-build call
+        }
+//        multiDexEnabled true
     }
     buildTypes {
         release {
@@ -30,10 +37,19 @@ android {
 }
 
 dependencies {
-    compile fileTree(dir: 'libs', include: ['*.jar'])
+//    compile fileTree(dir: 'libs', include: ['*.jar'])
     androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
         exclude group: 'com.android.support', module: 'support-annotations'
     })
+
     compile 'com.android.support:appcompat-v7:24.2.1'
+    compile files('libs/libjingle_peerconnection.jar')
+    compile files('libs/base_java.jar')
+    compile files('libs/audio_device_java.jar')
+
+//    compile 'io.pristine:libjingle:9127@aar'
+    compile 'com.neovisionaries:nv-websocket-client:1.31'
+
+
     testCompile 'junit:junit:4.12'
 }
