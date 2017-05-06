@@ -62,6 +62,43 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private class CallbackObserver implements SdpObserver {
+
+        private String TAG;
+
+        public CallbackObserver(String TAG) {
+            this.TAG = TAG;
+        }
+
+        @Override
+        public void onCreateSuccess(SessionDescription sessionDescription) {
+            Logging.d(TAG, "SUCCESSFULLY CREATED remote description");
+            Log.d(TAG, "SUCCESSFULLY CREATED remote description");
+            System.out.println("SUCCESSFULLY CREATED remote description");
+        }
+
+        @Override
+        public void onSetSuccess() {
+            Logging.d(TAG, "SUCCESSFULLY SET remote description");
+            Log.d(TAG, "SUCCESSFULLY SET remote description");
+            System.out.println("SUCCESSFULLY SET remote description");
+        }
+
+        @Override
+        public void onCreateFailure(String s) {
+            Logging.d(TAG, "Failed to CREATE remote description");
+            Log.e(TAG, "Failed to CREATE remote description");
+            System.out.println("Failed to CREATE remote description");
+        }
+
+        @Override
+        public void onSetFailure(String s) {
+            Logging.d(TAG, "Failed to SET remote description");
+            Log.e(TAG, "Failed to SET remote description");
+            System.out.println("Failed to SET remote description");
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
 
@@ -139,11 +176,16 @@ public class MainActivity extends AppCompatActivity {
             // not sure what to put here
             @Override
             public void onIceCandidate(IceCandidate iceCandidate) {
+                System.out.println("AN ICE CANDIDATE HAS BEEN DISCOVERED");
                 if (iceCandidate != null && in_scope_ws != null) {
                     try {
-                        JSONObject jsonObject = new JSONObject();
-                        jsonObject.put("ice", iceCandidate.toString());
-                        in_scope_ws.sendText(jsonObject.toString());
+                        JSONObject payload = new JSONObject();
+                        payload.put("sdpMLineIndex", iceCandidate.sdpMLineIndex);
+                        payload.put("sdpMid", iceCandidate.sdpMid);
+                        payload.put("candidate", iceCandidate.sdp);
+                        JSONObject candidateObject = new JSONObject();
+                        candidateObject.put("ice", iceCandidate.toString());
+                        in_scope_ws.sendText(candidateObject.toString());
                     } catch (JSONException e) {
                         e.printStackTrace();
                     }
@@ -191,22 +233,32 @@ public class MainActivity extends AppCompatActivity {
         });
 
 //        System.out.println(this.ws);
-        System.out.println("ABOUT TO ADD NEW LISTENER");
+//        System.out.println("ABOUT TO ADD NEW LISTENER");
 
         this.ws.addListener(new WebSocketAdapter() {
             @Override
             public void onTextMessage(WebSocket websocket, String message) throws Exception {
-                System.out.println("RECEIVED MESSAGE FROM SERVER");
+                System.out.println("\nRECEIVED MESSAGE FROM SERVER");
                 JSONObject receivedJson = new JSONObject(message);
                 if (receivedJson.has("ice")) {
                     System.out.println("ADDING ICE CANDIDATE");
 
                     JSONObject newCandidateInfo = receivedJson.getJSONObject("ice");
+
+//                    System.out.println("CANDIDATE INFO");
+//                    System.out.println("\t" + newCandidateInfo.getString("sdpMid") + "\n");
+//                    System.out.println("\t" + newCandidateInfo.getInt("sdpMLineIndex") + "\n");
+//                    System.out.println("\t" + newCandidateInfo.getString("candidate") + "\n");
+
                     IceCandidate newCandidate = new IceCandidate(
                             newCandidateInfo.getString("sdpMid"),
                             newCandidateInfo.getInt("sdpMLineIndex"),
                             newCandidateInfo.getString("candidate")
                     );
+//                    while (peerConnection.getRemoteDescription() != null) {
+//
+//                    }
+//                    Thread.sleep(4000);
                     peerConnection.addIceCandidate(newCandidate);
                 }
                 if (receivedJson.has("sdp")) {
@@ -214,97 +266,50 @@ public class MainActivity extends AppCompatActivity {
 
                     String sdpStr = receivedJson.getJSONObject("sdp").getString("sdp");
 
-//                    System.out.println(sdpStr);
-
                     SessionDescription sdp = new SessionDescription(SessionDescription.Type.OFFER, sdpStr);
-                    System.out.println("NEW SDP");
-                    System.out.println(sdp);
-                    peerConnection.setRemoteDescription(new SdpObserver() {
 
-                        String TAG = "SetRemoteDescription";
+//                    System.out.println("NEW SDP");
+//                    System.out.println(sdpStr + "\n\n");
 
+                    System.out.println("Setting remote description");
+
+                    peerConnection.setRemoteDescription(new CallbackObserver("SetRemoteDescription"), sdp);
+
+                    // create the answer to the session description
+                    System.out.println("Creating answer");
+                    peerConnection.createAnswer(new SdpObserver() {
                         @Override
                         public void onCreateSuccess(SessionDescription sessionDescription) {
-                            Logging.d(TAG, "SUCCESSFULLY CREATED remote description");
-                            Log.d(TAG, "SUCCESSFULLY CREATED remote description");
-                            System.out.println("SUCCESSFULLY CREATED remote description");
+                            System.out.println("SUCCESSFULLY CREATED ANSWER");
+                            // set the answer to our local session description
+                            peerConnection.setLocalDescription(new CallbackObserver("SET_LOCAL_SDP"), sessionDescription);
+
+                            // package the response and send it to the server
+                            try {
+                                JSONObject jsonObject = new JSONObject();
+                                jsonObject.put("sdp", sessionDescription.toString());
+                                in_scope_ws.sendText(jsonObject.toString());
+
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
                         }
 
                         @Override
                         public void onSetSuccess() {
-                            Logging.d(TAG, "SUCCESSFULLY SET remote description");
-                            Log.d(TAG, "SUCCESSFULLY SET remote description");
-                            System.out.println("SUCCESSFULLY SET remote description");
-                            // create the answer to the session description
-                            peerConnection.createAnswer(new SdpObserver() {
-                                @Override
-                                public void onCreateSuccess(SessionDescription sessionDescription) {
-                                    System.out.println("SUCCESSFULLY CREATED ANSWER");
-                                    // set the answer to our local session description
-                                    peerConnection.setLocalDescription(new SdpObserver() {
-                                        @Override
-                                        public void onCreateSuccess(SessionDescription sessionDescription) {
 
-                                        }
-
-                                        @Override
-                                        public void onSetSuccess() {
-                                            System.out.println("SUCCESSFULLY SET local session description");
-                                        }
-
-                                        @Override
-                                        public void onCreateFailure(String s) {
-
-                                        }
-
-                                        @Override
-                                        public void onSetFailure(String s) {
-                                            System.out.println("FAILED to SET local session description");
-                                        }
-                                    }, sessionDescription);
-
-                                    // package the response and send it to the server
-                                    try {
-                                        JSONObject jsonObject = new JSONObject();
-                                        jsonObject.put("sdp", sessionDescription.toString());
-                                        in_scope_ws.sendText(jsonObject.toString());
-
-                                    } catch (JSONException e) {
-                                        e.printStackTrace();
-                                    }
-                                }
-
-                                @Override
-                                public void onSetSuccess() {
-
-                                }
-
-                                @Override
-                                public void onCreateFailure(String s) {
-                                    System.out.println("FAILED to CREATED ANSWER");
-                                }
-
-                                @Override
-                                public void onSetFailure(String s) {
-
-                                }
-                            }, mediaConstraints);
                         }
 
                         @Override
                         public void onCreateFailure(String s) {
-                            Logging.d(TAG, "Failed to CREATE remote description");
-                            Log.e(TAG, "Failed to CREATE remote description");
-                            System.out.println("Failed to CREATE remote description");
+                            System.out.println("FAILED to CREATED ANSWER");
                         }
 
                         @Override
                         public void onSetFailure(String s) {
-                            Logging.d(TAG, "Failed to SET remote description");
-                            Log.e(TAG, "Failed to SET remote description");
-                            System.out.println("Failed to SET remote description");
+
                         }
-                    }, sdp);
+                    }, mediaConstraints);
                 }
             }
         });
