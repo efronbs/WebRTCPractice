@@ -1,0 +1,163 @@
+<html>
+   <head>
+      <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
+   </head>
+   <body>
+      <video id="localVideo" autoplay muted style="width:40%;"></video>
+      <video id="remoteVideo" autoplay style="width:40%;"></video>
+      <br />
+      <input type="button" id="start" onclick="start(true)" value="Start Video"></input>
+      <input type="button" id="test" onclick="test()" value="Test Server"></input>
+      <script type="text/javascript">
+         var localVideo;
+         var remoteVideo;
+         var localStream;
+         var peerConnection;
+        //  var peerConnectionConfig = {'iceServers': [{'url': 'stun:stun.l.google.com:19302'}]};
+        var peerConnectionConfig = {'iceServers':
+        [{'url': 'turn:numb.viagenie.ca', 'credential' : 'muazkh', 'username' : 'webrtc@live.com'}]};
+         pageReady();
+
+         function pageReady() {
+            localVideo = document.getElementById('localVideo');
+            remoteVideo = document.getElementById('remoteVideo');
+
+            // serverConnection = new WebSocket('ws://174.97.247.219:3434');
+            serverConnection = new WebSocket('ws://localhost:3434');
+            console.log(serverConnection);
+            serverConnection.addEventListener('message', gotMessageFromServer);
+            // serverConnection.addEventListener('message', function (event) {console.log("GOT MESSAGE FROM SERVER")});
+
+            constraints = {
+                video: true,
+                audio: true,
+            };
+
+            if(navigator.getUserMedia) {
+              navigator.getUserMedia(constraints, getUserMediaSuccess, getUserMediaError);
+            } else {
+              alert('Your browser does not support getUserMedia API');
+            }
+         };
+
+         function getUserMediaSuccess(stream) {
+            localStream = stream;
+            localVideo.src = window.URL.createObjectURL(stream);
+         }
+
+         function getUserMediaError(error) {
+            console.log(error);
+         }
+
+         function start(isCaller) {
+            peerConnection = new RTCPeerConnection(peerConnectionConfig, {optional: [ {"DtlsSrtpKeyAgreement": true}]});
+            peerConnection.onicecandidate = gotIceCandidate;
+            peerConnection.onaddstream = gotRemoteStream;
+            peerConnection.addStream(localStream);
+            if(isCaller) {
+            peerConnection.createOffer(gotDescription, createOfferError);
+            }
+         }
+
+         function test(){
+            serverConnection.send("test");
+         }
+
+         function gotDescription(description) {
+            console.log('got description');
+            peerConnection.setLocalDescription(description, function () {
+            serverConnection.send(JSON.stringify({'sdp': description}));
+            }, function() {console.log('set description error')});
+         }
+
+         function gotIceCandidate(event) {
+            if(event.candidate != null) {
+                serverConnection.send(JSON.stringify({'ice': event.candidate}));
+            }
+         }
+
+         function gotRemoteStream(event) {
+            console.log('got remote stream');
+            remoteVideo.src = window.URL.createObjectURL(event.stream);
+         }
+
+         function createOfferError(error) {
+            console.log(error);
+         }
+
+         function gotMessageFromServer(message) {
+            // console.log(message);
+
+            if(!peerConnection) start(false);
+
+            var signal = JSON.parse(message.data);
+            console.log(signal);
+            if(signal.sdp) {
+                console.log(signal);
+                peerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp), function() {
+                    if(signal.sdp.type == 'offer') {
+                        peerConnection.createAnswer(gotDescription, function(error) {console.log("error")});
+                    }
+                });
+            } else if(signal.ice) {
+              console.log(signal);
+                peerConnection.addIceCandidate(new RTCIceCandidate(signal.ice))
+                  .then(_ => {
+                    console.log("successfully added ice candidate");
+                  }).catch(e=>{
+                  console.log("Error: Failure during addIceCandidate()");
+                  console.log(e);
+                });
+            }
+         }
+
+      </script>
+   </body>
+</html>
+<!--DOCTYPE HTML>
+<html>
+   <head>
+      <script type="text/javascript">
+         function WebSocketTest()
+         {
+            if ("WebSocket" in window)
+            {
+               alert("WebSocket is supported by your Browser!");
+
+               // Let us open a web socket
+               var ws = new WebSocket("ws://localhost:3434/echo");
+
+               ws.onopen = function()
+               {
+                  // Web Socket is connected, send data using send()
+                  ws.send("Message to send");
+                  alert("Message is sent...");
+               };
+
+               ws.onmessage = function (evt)
+               {
+                  var received_msg = evt.data;
+                  alert("Message is received...");
+               };
+
+               ws.onclose = function()
+               {
+                  // websocket is closed.
+                  alert("Connection is closed...");
+               };
+            }
+
+            else
+            {
+               // The browser doesn't support WebSocket
+               alert("WebSocket NOT supported by your Browser!");
+            }
+         }
+      </script>
+   </head>
+   <body>
+      <div id="sse">
+         <a href="javascript:WebSocketTest()">Run WebSocket</a>
+      </div>
+   </body>
+</html>
