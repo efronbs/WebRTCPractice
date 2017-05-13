@@ -75,6 +75,7 @@ public class MainActivity extends AppCompatActivity {
             Logging.d(TAG, "SUCCESSFULLY CREATED remote description");
             Log.d(TAG, "SUCCESSFULLY CREATED remote description");
             System.out.println("SUCCESSFULLY CREATED remote description");
+//            while (true);
         }
 
         @Override
@@ -82,6 +83,7 @@ public class MainActivity extends AppCompatActivity {
             Logging.d(TAG, "SUCCESSFULLY SET remote description");
             Log.d(TAG, "SUCCESSFULLY SET remote description");
             System.out.println("SUCCESSFULLY SET remote description");
+//            while(true);
         }
 
         @Override
@@ -89,6 +91,7 @@ public class MainActivity extends AppCompatActivity {
             Logging.d(TAG, "Failed to CREATE remote description");
             Log.e(TAG, "Failed to CREATE remote description");
             System.out.println("Failed to CREATE remote description");
+//            while(true);
         }
 
         @Override
@@ -96,6 +99,7 @@ public class MainActivity extends AppCompatActivity {
             Logging.d(TAG, "Failed to SET remote description");
             Log.e(TAG, "Failed to SET remote description");
             System.out.println("Failed to SET remote description");
+//            while(true);
         }
     }
 
@@ -107,12 +111,13 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        ctx = getApplicationContext();
+        ctx = this;
 
         new ServerConnection().execute();
 
         // ICE servers
         PeerConnection.IceServer iceServer = new PeerConnection.IceServer("http://stun.stun.l.google.com:19302/");
+//        PeerConnection.IceServer iceServer = new PeerConnection.IceServer("turn:numb.viagenie.ca", "webrtc@live.com", "muazkh");
         List<PeerConnection.IceServer> servers = new ArrayList<PeerConnection.IceServer>();
         servers.add(iceServer);
 
@@ -120,6 +125,7 @@ public class MainActivity extends AppCompatActivity {
         final MediaConstraints mediaConstraints = new MediaConstraints();
         mediaConstraints.mandatory.add(new MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"));
         mediaConstraints.mandatory.add(new MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"));
+        mediaConstraints.optional.add(new MediaConstraints.KeyValuePair("DtlsSrtpKeyAgreement", "true"));
 
         // Set up remote rendering stuff
         rootEGLBase = EglBase.create();
@@ -138,9 +144,16 @@ public class MainActivity extends AppCompatActivity {
 //        VideoRendererGui.setView(videoView, null);
 //        remoteRender = VideoRendererGui.create(0, 0, 100, 100, RendererCommon.ScalingType.SCALE_ASPECT_FILL, false);
 
-        // Create a peerconnection factory
+        // Create a peer connection factory
         PeerConnectionFactory.initializeAndroidGlobals(this.ctx, true);
         PeerConnectionFactory.Options options = new PeerConnectionFactory.Options();
+
+//        options.disableEncryption = true;
+//        options.disableNetworkMonitor = true;
+        options.networkIgnoreMask = 0;
+
+//        PeerConnectionFactory.initializeFieldTrials("WebRTC-MediaCodecVideoEncoder-AutomaticResize/Enabled/");
+//        PeerConnectionFactory.initializeFieldTrials(null); //is this necessary?
         PeerConnectionFactory peerConnectionFactory = new PeerConnectionFactory(options);
 
         // wait until my websocket has connected
@@ -149,28 +162,28 @@ public class MainActivity extends AppCompatActivity {
         System.out.println("done wait");
         final WebSocket in_scope_ws = this.ws;
 
-        // Create peerconnection
-        final PeerConnection peerConnection = peerConnectionFactory.createPeerConnection(servers, mediaConstraints, new PeerConnection.Observer() {
-
+        // create peer connection observer
+        PeerConnection.Observer pcObserver = new PeerConnection.Observer() {
+            final String TAG = "PEER_CONNECTION_FACTORY";
 
             @Override
             public void onSignalingChange(PeerConnection.SignalingState signalingState) {
-
+                Log.d(TAG, "onSignalingChange");
             }
 
             @Override
             public void onIceConnectionChange(PeerConnection.IceConnectionState iceConnectionState) {
-
+                Log.d(TAG, "onIceConnectionChange");
             }
 
             @Override
             public void onIceConnectionReceivingChange(boolean b) {
-
+                Log.d(TAG, "onIceConnectionReceivingChange");
             }
 
             @Override
             public void onIceGatheringChange(PeerConnection.IceGatheringState iceGatheringState) {
-
+                Log.d(TAG, "onIceGatheringChange");
             }
 
             // not sure what to put here
@@ -196,7 +209,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onIceCandidatesRemoved(IceCandidate[] iceCandidates) {
-
+                Log.d(TAG, "onIceCandidatesRemoved");
             }
 
             // pretty sure this is the only garbage I need right now
@@ -213,25 +226,26 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onRemoveStream(MediaStream mediaStream) {
-
+                Log.d(TAG, "onRemoveStream");
             }
 
             @Override
             public void onDataChannel(DataChannel dataChannel) {
-
+                Log.d(TAG, "onDataChannel");
             }
 
             @Override
             public void onRenegotiationNeeded() {
-
+                Log.d(TAG, "onRenegotiationNeeded");
             }
 
             @Override
-            public void onAddTrack(RtpReceiver rtpReceiver, MediaStream[] mediaStreams) {
+            public void onAddTrack(RtpReceiver rtpReceiver, MediaStream[] mediaStreams) { Log.d(TAG, "onAddTrack"); }
 
-            }
-        });
+        };
 
+        // Create peerconnection
+        final PeerConnection peerConnection = peerConnectionFactory.createPeerConnection(servers, mediaConstraints, pcObserver);
 //        System.out.println(this.ws);
 //        System.out.println("ABOUT TO ADD NEW LISTENER");
 
@@ -260,6 +274,7 @@ public class MainActivity extends AppCompatActivity {
 //                    }
 //                    Thread.sleep(4000);
                     peerConnection.addIceCandidate(newCandidate);
+                    System.out.println("JUST SET ICE CANDIDATE");
                 }
                 if (receivedJson.has("sdp")) {
                     System.out.println("ADDING SESSION DESCRIPTION");
@@ -272,10 +287,10 @@ public class MainActivity extends AppCompatActivity {
 //                    System.out.println(sdpStr + "\n\n");
 
                     System.out.println("Setting remote description");
-
                     peerConnection.setRemoteDescription(new CallbackObserver("SetRemoteDescription"), sdp);
 
                     // create the answer to the session description
+                    Log.d("SDP_LISTENER","CREATING ANSWER");
                     System.out.println("Creating answer");
                     peerConnection.createAnswer(new SdpObserver() {
                         @Override
